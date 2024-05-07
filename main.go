@@ -36,6 +36,8 @@ type Order struct {
 	Complete bool
 }
 
+type sema chan struct{}
+
 var orders []*Order
 var completeOrders map[int]bool
 var wg sync.WaitGroup
@@ -106,6 +108,22 @@ func (wp *WorkerPool) Wait() {
 	close(wp.Result)
 }
 
+func New(n int) sema {
+	return make(sema, n)
+}
+
+func (s sema) Inc(k int) {
+	for i := 0; i < k; i++ {
+		s <- struct{}{}
+	}
+}
+
+func (s sema) Dec(k int) {
+	for i := 0; i < k; i++ {
+		<-s
+	}
+}
+
 func main() {
 	// pool := NewWorkerPool(5)
 	// pool.Start()
@@ -161,6 +179,24 @@ func main() {
 		close(processTimes)
 	}()
 	checkTimeDifference(limitCount)
+
+	numbers := []int{1, 2, 3, 4, 5}
+	n := len(numbers)
+
+	sem := New(n)
+	var wg sync.WaitGroup
+
+	for _, num := range numbers {
+		wg.Add(1)
+		go func(n int) {
+			sem.Inc(1)
+			defer wg.Done()
+			fmt.Println(n)
+			sem.Dec(1)
+		}(num)
+	}
+
+	wg.Wait() // Ждем завершения всех горутин
 }
 
 func checkTimeDifference(limitCount int) {
